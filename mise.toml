@@ -40,9 +40,9 @@ git push origin "$TAG"
 
 [tasks.install]
 description = "Interactively select and install a release artifact via fzf and mise"
-run = "./install.sh"
+run = "./scripts/install.sh"
 
 [tasks."install:dev"]
 description = "Build and link local development binary into mise and ~/.local/bin/qw"
-run = "./install.sh --dev"
+run = "./scripts/install.sh --dev"
 

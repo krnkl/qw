@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_BIN_DIR="${INSTALL_BIN_DIR:-${HOME}/.local/bin}"
 
 # ANSI Colors
@@ -63,33 +63,33 @@ CURRENT_VERSION="$(get_current_version)"
 install_dev() {
     info "Installing local development build of qw..."
 
-    cd "${SCRIPT_DIR}"
+    cd "${REPO_ROOT}"
 
     # 1. Build local binary with dev ldflags
     info "Building ./bin/qw..."
-    VERSION_VAL="$(cat VERSION | tr -d '[:space:]')"
+    VERSION_VAL="$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')"
     COMMIT_VAL="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
     BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-    go build -ldflags "-X github.com/krnkl/qw/internal/version.Version=v${VERSION_VAL}-dev -X github.com/krnkl/qw/internal/version.Commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.Date=${BUILD_DATE}" -o bin/qw ./cmd/qw
+    go build -ldflags "-X github.com/krnkl/qw/internal/version.Version=v${VERSION_VAL}-dev -X github.com/krnkl/qw/internal/version.Commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.Date=${BUILD_DATE}" -o "${REPO_ROOT}/bin/qw" ./cmd/qw
     success "Compiled ./bin/qw"
 
     # 2. Ad-hoc codesign on macOS (prevents arm64 invalidation crashes)
     if [[ "$(uname -s)" == "Darwin" ]] && command -v codesign >/dev/null 2>&1; then
-        codesign -s - -f bin/qw 2>/dev/null || true
+        codesign -s - -f "${REPO_ROOT}/bin/qw" 2>/dev/null || true
     fi
 
     # 3. Link into mise
     info "Linking local repository into mise as github:krnkl/qw@dev..."
-    mise link -f github:krnkl/qw@dev "${SCRIPT_DIR}"
+    mise link -f github:krnkl/qw@dev "${REPO_ROOT}"
     mise use -g github:krnkl/qw@dev
     mise reshim 2>/dev/null || true
     success "Configured mise shim pointing to local build"
 
     # 4. Relink global fallback link (~/.local/bin/qw)
     mkdir -p "${INSTALL_BIN_DIR}"
-    ln -sf "${SCRIPT_DIR}/bin/qw" "${INSTALL_BIN_DIR}/qw"
-    success "Relinked ${INSTALL_BIN_DIR}/qw -> ${SCRIPT_DIR}/bin/qw"
+    ln -sf "${REPO_ROOT}/bin/qw" "${INSTALL_BIN_DIR}/qw"
+    success "Relinked ${INSTALL_BIN_DIR}/qw -> ${REPO_ROOT}/bin/qw"
 
     # 5. Verification
     printf "\n"
@@ -205,9 +205,9 @@ case "${1:-}" in
         ;;
     --help|-h|help)
         printf "Usage:\n"
-        printf "  ./install.sh          Interactively select and install a release via fzf\n"
-        printf "  ./install.sh <ver>    Directly install a specific release (e.g. 0.1.0 or v0.1.0)\n"
-        printf "  ./install.sh --dev    Build and link the local development checkout into mise and ~/.local/bin\n"
+        printf "  ./scripts/install.sh          Interactively select and install a release via fzf\n"
+        printf "  ./scripts/install.sh <ver>    Directly install a specific release (e.g. 0.1.0 or v0.1.0)\n"
+        printf "  ./scripts/install.sh --dev    Build and link the local development checkout into mise and ~/.local/bin\n"
         exit 0
         ;;
     *)
