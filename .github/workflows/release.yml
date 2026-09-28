@@ -34,6 +34,7 @@ jobs:
         env:
           FORCE_INPUT: ${{ github.event.inputs.force }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git fetch --tags
@@ -43,15 +44,37 @@ jobs:
 
           echo "Target tag: $TARGET_TAG"
 
-          if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
-            echo "ℹ Tag $TARGET_TAG already exists. No new release needed."
+          # 1. If GitHub Release already exists with assets, no new release is needed
+          if gh release view "$TARGET_TAG" >/dev/null 2>&1; then
+            echo "ℹ GitHub release $TARGET_TAG already exists. No new release needed."
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Find highest existing tag
-          HIGHEST_TAG="$(./scripts/verify-version.sh highest-tag)"
-          echo "Highest existing tag: ${HIGHEST_TAG:-none}"
+          # 2. If force release input was given, always release
+          if [ "$FORCE_INPUT" = "true" ]; then
+            echo "✓ Force release requested for $TARGET_TAG."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 3. Find highest existing previous tag (excluding TARGET_TAG)
+          HIGHEST_TAG=""
+          for t in $(git tag -l "v*"); do
+            [ "$t" = "$TARGET_TAG" ] && continue
+            ./scripts/verify-version.sh compare "$t" "0.0.0" >/dev/null 2>&1 || continue
+            if [ -z "$HIGHEST_TAG" ]; then
+              HIGHEST_TAG="$t"
+            else
+              CMP=$(./scripts/verify-version.sh compare "$t" "$HIGHEST_TAG" 2>/dev/null || echo "0")
+              if [ "$CMP" -gt 0 ]; then
+                HIGHEST_TAG="$t"
+              fi
+            fi
+          done
+
+          echo "Highest previous tag: ${HIGHEST_TAG:-none}"
 
           if [ -z "$HIGHEST_TAG" ]; then
             echo "✓ Initial release detected: $TARGET_TAG"
@@ -60,9 +83,9 @@ jobs:
             exit 0
           fi
 
-          # Determine bump type
+          # Determine bump type relative to highest previous tag
           BUMP_TYPE="$(./scripts/verify-version.sh bump-type "$HIGHEST_TAG" "$TARGET_TAG")"
-          echo "Bump type: $BUMP_TYPE"
+          echo "Bump type relative to $HIGHEST_TAG: $BUMP_TYPE"
 
           if [ "$BUMP_TYPE" = "major" ] || [ "$BUMP_TYPE" = "minor" ]; then
             echo "✓ Major/Minor bump detected. Auto-releasing."
@@ -73,10 +96,7 @@ jobs:
 
           # Patch bump logic
           SHOULD_RELEASE="false"
-          if [ "$FORCE_INPUT" = "true" ]; then
-            echo "✓ Force release input is true."
-            SHOULD_RELEASE="true"
-          elif [[ "$COMMIT_MSG" =~ \[release\]|\[hotfix\] ]]; then
+          if [[ "$COMMIT_MSG" =~ \[release\]|\[hotfix\] ]]; then
             echo "✓ Commit message contains [release] or [hotfix]."
             SHOULD_RELEASE="true"
           fi
@@ -86,11 +106,16 @@ jobs:
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "ℹ Patch bump without release trigger. Creating tag only."
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TARGET_TAG" -m "Tag $TARGET_TAG"
-            git push origin "$TARGET_TAG"
+            echo "ℹ Patch bump without release trigger."
+            if ! git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+              echo "Creating audit tag $TARGET_TAG..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag -a "$TARGET_TAG" -m "Tag $TARGET_TAG"
+              git push origin "$TARGET_TAG"
+            else
+              echo "ℹ Tag $TARGET_TAG already exists."
+            fi
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -98,11 +123,18 @@ jobs:
         if: steps.check.outputs.should_release == 'true'
         run: |
           TAG="${{ steps.check.outputs.target_tag }}"
-          echo "Creating and pushing git tag: $TAG"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "ℹ Git tag $TAG already exists locally."
+          elif git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "ℹ Git tag $TAG already exists on remote. Fetching..."
+            git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+          else
+            echo "Creating and pushing git tag: $TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
 
       - name: Publish Release via GoReleaser
         if: steps.check.outputs.should_release == 'true'
