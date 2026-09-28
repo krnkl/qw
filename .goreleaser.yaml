@@ -1,0 +1,48 @@
+version: 2
+
+project_name: qw
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: qw
+    main: ./cmd/qw
+    binary: qw
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/krnkl/qw/internal/version.Version={{ .Tag }}
+      - -X github.com/krnkl/qw/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/krnkl/qw/internal/version.Date={{ .Date }}
+
+archives:
+  - id: qw-archive
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

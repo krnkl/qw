@@ -1,0 +1,39 @@
+[tools]
+go = "1.27.1"
+
+[tasks.build]
+description = "Build the qw binary with version ldflags"
+run = """
+VERSION_VAL="$(cat VERSION | tr -d '[:space:]')"
+COMMIT_VAL="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+go build -ldflags "-X github.com/krnkl/qw/internal/version.Version=v${VERSION_VAL} -X github.com/krnkl/qw/internal/version.Commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.Date=${BUILD_DATE}" -o bin/qw ./cmd/qw
+"""
+
+[tasks.test]
+description = "Run Go unit test suite"
+run = "go test -v -race ./..."
+
+[tasks."test:docker"]
+description = "Run Go test suite inside Linux Docker container"
+run = "docker build -f Dockerfile.test -t qw-test . && docker run --rm qw-test"
+
+[tasks.lint]
+description = "Verify code formatting and run go vet"
+run = "go vet ./... && test -z \"$(gofmt -l .)\""
+
+[tasks.config]
+description = "Run qw config diagnostics"
+run = "go run ./cmd/qw config"
+
+[tasks."version:verify"]
+description = "Verify semantic version and prevent downgrades"
+run = "./scripts/verify-version.sh"
+
+[tasks.tag]
+description = "Tag and push current release version"
+run = """
+TAG="v$(cat VERSION | tr -d '[:space:]')"
+git tag -a "$TAG" -m "Release $TAG"
+git push origin "$TAG"
+"""

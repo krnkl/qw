@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force publish release (overrides patch-bump release skip)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Evaluate & Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Evaluate Release Gate
+        id: check
+        env:
+          FORCE_INPUT: ${{ github.event.inputs.force }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          git fetch --tags
+
+          TARGET_VER=$(cat VERSION | tr -d '[:space:]')
+          TARGET_TAG="v${TARGET_VER}"
+
+          echo "Target tag: $TARGET_TAG"
+
+          if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+            echo "ℹ Tag $TARGET_TAG already exists. No new release needed."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Find highest existing tag
+          HIGHEST_TAG=""
+          for t in $(git tag -l "v*"); do
+            if [ -z "$HIGHEST_TAG" ]; then
+              HIGHEST_TAG="$t"
+            else
+              CMP=$(go run ./scripts/semver_tool.go compare "$t" "$HIGHEST_TAG" 2>/dev/null || echo "0")
+              if [ "$CMP" -gt 0 ]; then
+                HIGHEST_TAG="$t"
+              fi
+            fi
+          done
+
+          echo "Highest existing tag: ${HIGHEST_TAG:-none}"
+
+          if [ -z "$HIGHEST_TAG" ]; then
+            echo "✓ Initial release detected: $TARGET_TAG"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Determine bump type
+          BUMP_TYPE=$(go run ./scripts/semver_tool.go bump-type "$HIGHEST_TAG" "$TARGET_TAG")
+          echo "Bump type: $BUMP_TYPE"
+
+          if [ "$BUMP_TYPE" = "major" ] || [ "$BUMP_TYPE" = "minor" ]; then
+            echo "✓ Major/Minor bump detected. Auto-releasing."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Patch bump logic
+          SHOULD_RELEASE="false"
+          if [ "$FORCE_INPUT" = "true" ]; then
+            echo "✓ Force release input is true."
+            SHOULD_RELEASE="true"
+          elif [[ "$COMMIT_MSG" =~ \[release\]|\[hotfix\] ]]; then
+            echo "✓ Commit message contains [release] or [hotfix]."
+            SHOULD_RELEASE="true"
+          fi
+
+          if [ "$SHOULD_RELEASE" = "true" ]; then
+            echo "✓ Releasing patch: $TARGET_TAG"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "ℹ Patch bump without release trigger. Creating tag only."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TARGET_TAG" -m "Tag $TARGET_TAG"
+            git push origin "$TARGET_TAG"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and Publish Release
+        if: steps.check.outputs.should_release == 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

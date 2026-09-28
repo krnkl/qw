@@ -1,0 +1,9 @@
+FROM golang:alpine
+
+RUN apk add --no-cache bash git
+
+WORKDIR /app
+COPY . .
+
+# Run all Go tests in Linux environment
+CMD ["go", "test", "-v", "./..."]
