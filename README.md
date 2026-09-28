@@ -17,15 +17,36 @@ An ultra-fast terminal workspace navigator built in Go.
 
 ---
 
-## 🛠️ Installation & Build
+## 🛠️ Installation & Version Management
 
-### Using `mise`
+### 1. Interactive Release Install (`fzf`)
+
+Download and install an official release archive into `mise` and relink `~/.local/bin/qw`:
 
 ```bash
-# Clone the repository
-git clone https://github.com/krnkl/qw.git
-cd qw
+# Interactively choose a release via fzf:
+mise run install
+# or directly:
+./install.sh
 
+# Or install a specific version directly without prompting:
+./install.sh 0.1.0
+```
+
+### 2. Local Development Build (`install:dev`)
+
+Compile the local repository and link it as the active global tool:
+
+```bash
+mise run install:dev
+# or directly:
+./install.sh --dev
+```
+This builds `./bin/qw` with your current commit SHA and timestamp, configures `mise link -f github:krnkl/qw@dev $(pwd)`, activates it via `mise use -g github:krnkl/qw@dev`, and points `~/.local/bin/qw` to `./bin/qw`.
+
+### 3. Build & Test Targets
+
+```bash
 # Build binary to bin/qw
 mise run build
 
@@ -34,12 +55,9 @@ mise run test
 
 # Run Linux test suite via Docker
 mise run test:docker
-```
 
-### Manual Build
-
-```bash
-go build -o bin/qw ./cmd/qw
+# Lint & vet
+mise run lint
 ```
 
 ---
