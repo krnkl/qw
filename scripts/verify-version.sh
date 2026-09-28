@@ -269,6 +269,11 @@ run_verify() {
         fi
     fi
 
+    # Ensure git tags are up-to-date
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git fetch --tags origin 2>/dev/null || true
+    fi
+
     # Check against highest existing git tag
     local highest_tag
     highest_tag="$(get_highest_tag)"
