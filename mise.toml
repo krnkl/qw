@@ -1,6 +1,55 @@
 [tools]
 go = "1.27.1"
 
+# ------------------------------------------------------------------------------
+# Default / Meta Targets
+# ------------------------------------------------------------------------------
+
+[tasks.default]
+alias = "all"
+description = "Default workflow: verify version, lint, test, and build"
+depends = ["version:verify", "lint", "test", "build"]
+
+# ------------------------------------------------------------------------------
+# Code Quality & Verification Targets
+# ------------------------------------------------------------------------------
+
+[tasks.fmt]
+description = "Format Go source code with gofmt"
+run = "go fmt ./..."
+
+[tasks."fmt:check"]
+description = "Check Go source code formatting"
+run = "test -z \"$(gofmt -l .)\""
+
+[tasks.vet]
+description = "Run go vet code analysis"
+run = "go vet ./..."
+
+[tasks.lint]
+description = "Verify code formatting and run static analysis"
+depends = ["fmt:check", "vet"]
+
+[tasks."version:verify"]
+description = "Verify semantic version and prevent downgrades"
+run = "./scripts/verify-version.sh"
+
+# ------------------------------------------------------------------------------
+# Testing Targets
+# ------------------------------------------------------------------------------
+
+[tasks.test]
+description = "Run Go unit test suite with race detector"
+run = "go test -v -race ./..."
+
+[tasks."test:docker"]
+description = "Run Go test suite inside Linux Docker container"
+run = "docker build -f Dockerfile.test -t qw-test . && docker run --rm qw-test"
+
+# ------------------------------------------------------------------------------
+# Build & Clean Targets
+# ------------------------------------------------------------------------------
+
 [tasks.build]
 description = "Build the qw binary with version ldflags"
 run = """
@@ -10,33 +59,17 @@ BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 go build -ldflags "-X github.com/krnkl/qw/internal/version.Version=v${VERSION_VAL} -X github.com/krnkl/qw/internal/version.Commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.Date=${BUILD_DATE}" -o bin/qw ./cmd/qw
 """
 
-[tasks.test]
-description = "Run Go unit test suite"
-run = "go test -v -race ./..."
-
-[tasks."test:docker"]
-description = "Run Go test suite inside Linux Docker container"
-run = "docker build -f Dockerfile.test -t qw-test . && docker run --rm qw-test"
-
-[tasks.lint]
-description = "Verify code formatting and run go vet"
-run = "go vet ./... && test -z \"$(gofmt -l .)\""
+[tasks.clean]
+description = "Remove compiled binaries and distribution artifacts"
+run = "rm -rf bin/ dist/"
 
 [tasks.config]
 description = "Run qw config diagnostics"
 run = "go run ./cmd/qw config"
 
-[tasks."version:verify"]
-description = "Verify semantic version and prevent downgrades"
-run = "./scripts/verify-version.sh"
-
-[tasks.tag]
-description = "Tag and push current release version"
-run = """
-TAG="v$(cat VERSION | tr -d '[:space:]')"
-git tag -a "$TAG" -m "Release $TAG"
-git push origin "$TAG"
-"""
+# ------------------------------------------------------------------------------
+# Installation Targets
+# ------------------------------------------------------------------------------
 
 [tasks.install]
 description = "Interactively select and install a release artifact via fzf and mise"
@@ -46,6 +79,10 @@ run = "./scripts/install.sh"
 description = "Build and link local development binary into mise and ~/.local/bin/qw"
 run = "./scripts/install.sh --dev"
 
+# ------------------------------------------------------------------------------
+# Release Management Targets
+# ------------------------------------------------------------------------------
+
 [tasks.release]
 description = "Trigger manual release publication via GitHub Actions"
 run = "gh workflow run release.yml -f force=true"
@@ -53,4 +90,3 @@ run = "gh workflow run release.yml -f force=true"
 [tasks."release:watch"]
 description = "Trigger manual release publication and watch workflow progress"
 run = "gh workflow run release.yml -f force=true && sleep 3 && gh run watch"
-
