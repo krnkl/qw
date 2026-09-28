@@ -46,18 +46,25 @@ This builds `./bin/qw` with your current commit SHA and timestamp, configures `m
 
 ### 3. Build & Test Targets
 
+`mise.toml` provides Makefile-like targets with a default target and explicit dependency resolution:
+
 ```bash
-# Build binary to bin/qw
-mise run build
+# Default target (runs version:verify -> lint [fmt:check, vet] -> test -> build):
+mise run             # or: mise r, mise run all
 
-# Run unit tests
-mise run test
+# Granular code quality targets:
+mise run fmt         # Format Go source code (go fmt ./...)
+mise run fmt:check   # Check formatting without changes
+mise run vet         # Run go vet static analysis
+mise run lint        # Runs fmt:check and vet dependencies
 
-# Run Linux test suite via Docker
-mise run test:docker
+# Testing:
+mise run test        # Unit tests with race detector
+mise run test:docker # Clean containerized Alpine Linux test suite
 
-# Lint & vet
-mise run lint
+# Build & Cleanup:
+mise run build       # Build binary to bin/qw
+mise run clean       # Remove bin/ and dist/ build artifacts
 ```
 
 ---
