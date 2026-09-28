@@ -46,3 +46,11 @@ run = "./scripts/install.sh"
 description = "Build and link local development binary into mise and ~/.local/bin/qw"
 run = "./scripts/install.sh --dev"
 
+[tasks.release]
+description = "Trigger manual release publication via GitHub Actions"
+run = "gh workflow run release.yml -f force=true"
+
+[tasks."release:watch"]
+description = "Trigger manual release publication and watch workflow progress"
+run = "gh workflow run release.yml -f force=true && sleep 3 && gh run watch"
+
