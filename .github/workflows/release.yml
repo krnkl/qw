@@ -50,18 +50,7 @@ jobs:
           fi
 
           # Find highest existing tag
-          HIGHEST_TAG=""
-          for t in $(git tag -l "v*"); do
-            if [ -z "$HIGHEST_TAG" ]; then
-              HIGHEST_TAG="$t"
-            else
-              CMP=$(go run ./scripts/semver_tool.go compare "$t" "$HIGHEST_TAG" 2>/dev/null || echo "0")
-              if [ "$CMP" -gt 0 ]; then
-                HIGHEST_TAG="$t"
-              fi
-            fi
-          done
-
+          HIGHEST_TAG="$(./scripts/verify-version.sh highest-tag)"
           echo "Highest existing tag: ${HIGHEST_TAG:-none}"
 
           if [ -z "$HIGHEST_TAG" ]; then
@@ -72,7 +61,7 @@ jobs:
           fi
 
           # Determine bump type
-          BUMP_TYPE=$(go run ./scripts/semver_tool.go bump-type "$HIGHEST_TAG" "$TARGET_TAG")
+          BUMP_TYPE="$(./scripts/verify-version.sh bump-type "$HIGHEST_TAG" "$TARGET_TAG")"
           echo "Bump type: $BUMP_TYPE"
 
           if [ "$BUMP_TYPE" = "major" ] || [ "$BUMP_TYPE" = "minor" ]; then

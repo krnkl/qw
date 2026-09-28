@@ -27,10 +27,10 @@ Download and install an official release archive into `mise` and relink `~/.loca
 # Interactively choose a release via fzf:
 mise run install
 # or directly:
-./install.sh
+./scripts/install.sh
 
 # Or install a specific version directly without prompting:
-./install.sh 0.1.0
+./scripts/install.sh 0.1.0
 ```
 
 ### 2. Local Development Build (`install:dev`)
@@ -40,7 +40,7 @@ Compile the local repository and link it as the active global tool:
 ```bash
 mise run install:dev
 # or directly:
-./install.sh --dev
+./scripts/install.sh --dev
 ```
 This builds `./bin/qw` with your current commit SHA and timestamp, configures `mise link -f github:krnkl/qw@dev $(pwd)`, activates it via `mise use -g github:krnkl/qw@dev`, and points `~/.local/bin/qw` to `./bin/qw`.
 
