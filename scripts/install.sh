@@ -58,17 +58,16 @@ get_current_version() {
 CURRENT_VERSION="$(get_current_version)"
 
 # ------------------------------------------------------------------------------
-# Dev Mode: Build local binary and link to mise + ~/.local/bin
+# Dev Mode: Link local binary into mise + ~/.local/bin
 # ------------------------------------------------------------------------------
 install_dev() {
     info "Installing local development build of qw..."
 
     cd "${REPO_ROOT}"
 
-    # 1. Build local binary with mise unconditionally
-    info "Building ./bin/qw via mise..."
-    mise run build
-    success "Binary ./bin/qw is ready"
+    if [ ! -f "${REPO_ROOT}/bin/qw" ]; then
+        error "Binary ${REPO_ROOT}/bin/qw not found. Please run 'mise run build' first."
+    fi
 
     # 2. Ad-hoc codesign on macOS (prevents arm64 invalidation crashes)
     if [[ "$(uname -s)" == "Darwin" ]] && command -v codesign >/dev/null 2>&1; then
@@ -203,7 +202,7 @@ case "${1:-}" in
         printf "Usage:\n"
         printf "  ./scripts/install.sh          Interactively select and install a release via fzf\n"
         printf "  ./scripts/install.sh <ver>    Directly install a specific release (e.g. 0.1.0 or v0.1.0)\n"
-        printf "  ./scripts/install.sh --dev    Build and link the local development checkout into mise and ~/.local/bin\n"
+        printf "  ./scripts/install.sh --dev    Link the local development binary into mise and ~/.local/bin\n"
         exit 0
         ;;
     *)
