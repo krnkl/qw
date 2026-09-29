@@ -20,26 +20,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - name: Setup mise
+        uses: jdx/mise-action@v2
 
       - name: Verify Version & Semver Gate
-        run: ./scripts/verify-version.sh
+        run: mise run version:verify
 
-      - name: Check code formatting
-        run: |
-          UNFORMATTED=$(gofmt -l .)
-          if [ -n "$UNFORMATTED" ]; then
-            echo "Error: The following files are not formatted properly:"
-            echo "$UNFORMATTED"
-            exit 1
-          fi
-
-      - name: Run go vet
-        run: go vet ./...
+      - name: Run lint (fmt check & vet)
+        run: mise run lint
 
       - name: Run tests with race detector
-        run: go test -v -race ./...
+        run: mise run test

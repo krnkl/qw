@@ -1,5 +1,6 @@
 [tools]
-go = "1.27.1"
+go = "1.26.0"
+fzf = "0.74.4"
 
 # ------------------------------------------------------------------------------
 # Default / Meta Targets
@@ -42,10 +43,6 @@ run = "./scripts/verify-version.sh"
 description = "Run Go unit test suite with race detector"
 run = "go test -v -race ./..."
 
-[tasks."test:docker"]
-description = "Run Go test suite inside Linux Docker container"
-run = "docker build -f Dockerfile.test -t qw-test . && docker run --rm qw-test"
-
 # ------------------------------------------------------------------------------
 # Build & Clean Targets
 # ------------------------------------------------------------------------------
@@ -54,18 +51,14 @@ run = "docker build -f Dockerfile.test -t qw-test . && docker run --rm qw-test"
 description = "Build the qw binary with version ldflags"
 run = """
 VERSION_VAL="$(cat VERSION | tr -d '[:space:]')"
-COMMIT_VAL="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+COMMIT_VAL="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-go build -ldflags "-X github.com/krnkl/qw/internal/version.Version=v${VERSION_VAL} -X github.com/krnkl/qw/internal/version.Commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.Date=${BUILD_DATE}" -o bin/qw ./cmd/qw
+go build -ldflags "-X main.version=v${VERSION_VAL} -X main.commit=${COMMIT_VAL} -X main.date=${BUILD_DATE}" -o bin/qw ./cmd/qw
 """
 
 [tasks.clean]
 description = "Remove compiled binaries and distribution artifacts"
 run = "rm -rf bin/ dist/"
-
-[tasks.config]
-description = "Run qw config diagnostics"
-run = "go run ./cmd/qw config"
 
 # ------------------------------------------------------------------------------
 # Installation Targets
@@ -77,6 +70,7 @@ run = "./scripts/install.sh"
 
 [tasks."install:dev"]
 description = "Build and link local development binary into mise and ~/.local/bin/qw"
+depends = ["build"]
 run = "./scripts/install.sh --dev"
 
 # ------------------------------------------------------------------------------
@@ -84,9 +78,16 @@ run = "./scripts/install.sh --dev"
 # ------------------------------------------------------------------------------
 
 [tasks.release]
-description = "Trigger manual release publication via GitHub Actions"
-run = "gh workflow run release.yml -f force=true"
-
-[tasks."release:watch"]
-description = "Trigger manual release publication and watch workflow progress"
-run = "gh workflow run release.yml -f force=true && sleep 3 && gh run watch"
+description = "Trigger manual release publication via GitHub Actions and watch progress"
+run = """
+gh workflow run release.yml -f force=true
+RUN_ID=""
+for i in {1..15}; do
+  RUN_ID="$(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+  [ -n "$RUN_ID" ] && break
+  sleep 1
+done
+if [ -n "$RUN_ID" ]; then
+  gh run watch "$RUN_ID"
+fi
+"""

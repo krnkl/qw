@@ -1,170 +1,44 @@
-# qw (kiwi 🥝): Unified Workspace Navigator
+# qw
 
-An ultra-fast terminal workspace navigator built in Go.
+`qw` (pronounced *kiwi* 🥝) stands for **quick workspaces**.
 
-> **Pronunciation**: *qw* is pronounced **"kiwi"** (🥝) — an ergonomic, 2-key left-hand chord (`q` $\to$ `w`) designed for instant muscle memory.
+The main goal of `qw` is to help navigate active workspaces and aggregate related external context into a single, concise view, streamlining context switching and tracking across local and remote workspaces.
 
----
+## Features
 
-## 🚀 Features
+- **Strict XDG Base Directory Compliance**: Follows standard XDG paths for configuration, data, state, cache, and runtime directories across macOS and Linux.
 
-- **⚡ Strict XDG Base Directory Compliance**: Respects `$XDG_CONFIG_HOME`, `$XDG_DATA_HOME`, `$XDG_STATE_HOME`, `$XDG_CACHE_HOME`, and `$XDG_RUNTIME_DIR` with strict fallback handling on macOS and Linux.
-- **🛡️ Secure File Permissions**: Initializes runtime directories with `0700` (`rwx------`) and storage directories with `0755` (`rwxr-xr-x`).
-- **🔍 Diagnostic CLI**: `qw config` prints exact paths for all affected directories, detailing the precise resolution source (environment variable, config file, or platform fallback).
-- **📂 Flexible Workspace Root**: Configurable via `~/.config/qw/config.yaml` (`ws`) and overridable via `$QW_WORKSPACES` (falling back to `$XDG_DATA_HOME/qw/ws`).
-- **🧪 Cross-Platform Tested**: Fully verified locally and inside containerized Linux test suites.
-- **📦 Multi-Arch Releases**: Automated GoReleaser pipeline for `darwin/arm64`, `darwin/amd64`, `linux/arm64`, and `linux/amd64`.
+## Installation
 
----
+### Prerequisites
 
-## 🛠️ Installation & Version Management
+- [mise](https://mise.jdx.dev)
+- [fzf](https://github.com/junegunn/fzf)
 
-### 1. Interactive Release Install (`fzf`)
+### Setup
 
-Download and install an official release archive into `mise` and relink `~/.local/bin/qw`:
+Clone the repository and install via `mise`:
 
 ```bash
-# Interactively choose a release via fzf:
+git clone https://github.com/krnkl/qw.git
+cd qw
 mise run install
-# or directly:
-./scripts/install.sh
-
-# Or install a specific version directly without prompting:
-./scripts/install.sh 0.1.0
 ```
 
-### 2. Local Development Build (`install:dev`)
-
-Compile the local repository and link it as the active global tool:
+## Development
 
 ```bash
-mise run install:dev
-# or directly:
-./scripts/install.sh --dev
+mise run        # Run all verification, lint, test, and build targets
+mise run test   # Run unit test suite
 ```
-This builds `./bin/qw` with your current commit SHA and timestamp, configures `mise link -f github:krnkl/qw@dev $(pwd)`, activates it via `mise use -g github:krnkl/qw@dev`, and points `~/.local/bin/qw` to `./bin/qw`.
 
-### 3. Build & Test Targets
-
-`mise.toml` provides Makefile-like targets with a default target and explicit dependency resolution:
+## Usage
 
 ```bash
-# Default target (runs version:verify -> lint [fmt:check, vet] -> test -> build):
-mise run             # or: mise r, mise run all
-
-# Granular code quality targets:
-mise run fmt         # Format Go source code (go fmt ./...)
-mise run fmt:check   # Check formatting without changes
-mise run vet         # Run go vet static analysis
-mise run lint        # Runs fmt:check and vet dependencies
-
-# Testing:
-mise run test        # Unit tests with race detector
-mise run test:docker # Clean containerized Alpine Linux test suite
-
-# Build & Cleanup:
-mise run build       # Build binary to bin/qw
-mise run clean       # Remove bin/ and dist/ build artifacts
+qw version
+# Output: qw version v0.1.5 (commit: ..., built: ..., go: ..., os/arch: ...)
 ```
 
----
-
-## ⚙️ Configuration & XDG Resolution
-
-`qw` follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-
-### Storage Categories & Defaults
-
-| Category | Environment Variable | macOS Fallback | Linux Fallback | Permissions |
-| :--- | :--- | :--- | :--- | :--- |
-| **Config** | `XDG_CONFIG_HOME` | `$HOME/.config/qw` | `$HOME/.config/qw` | `0755` |
-| **Data** | `XDG_DATA_HOME` | `$HOME/.local/share/qw` | `$HOME/.local/share/qw` | `0755` |
-| **State** | `XDG_STATE_HOME` | `$HOME/.local/state/qw` | `$HOME/.local/state/qw` | `0755` |
-| **Cache** | `XDG_CACHE_HOME` | `$HOME/.cache/qw` | `$HOME/.cache/qw` | `0755` |
-| **Runtime** | `XDG_RUNTIME_DIR` | `$TMPDIR/qw` | `/run/user/<UID>/qw` *(or `/tmp/qw`)* | `0700` |
-
-### Workspace Directory (`ws`)
-
-`qw` stores new workspaces inside `<DataDir>/ws` (`~/.local/share/qw/ws`) by default.
-
-You can customize this location in two ways:
-
-1. **Config File (`config.yaml`)**:
-   Create `~/.config/qw/config.yaml`:
-   ```yaml
-   ws: ~/projects
-   ```
-
-2. **Environment Variable**:
-   Export `QW_WORKSPACES` (takes precedence over `config.yaml`):
-   ```bash
-   export QW_WORKSPACES="$HOME/projects"
-   ```
-
----
-
-## 💻 CLI Commands
-
-### 1. `qw config`
-
-Inspect resolved paths and resolution sources:
-
-```bash
-qw config
-```
-
-Example output:
-```text
-Configuration Paths:
-  Config File:    /Users/krnkl/.config/qw/config.yaml [missing] (config dir: platform fallback: darwin (~/.config))
-  Config Dir:     /Users/krnkl/.config/qw (resolved via: platform fallback: darwin (~/.config))
-  Data Dir:       /Users/krnkl/.local/share/qw (resolved via: platform fallback: darwin (~/.local/share))
-  State Dir:      /Users/krnkl/.local/state/qw (resolved via: platform fallback: darwin (~/.local/state))
-  Cache Dir:      /Users/krnkl/.cache/qw (resolved via: platform fallback: darwin (~/.cache))
-  Runtime Dir:    /var/folders/.../T/qw (resolved via: platform fallback: macOS $TMPDIR)
-
-Settings:
-  Workspaces Dir: /Users/krnkl/projects (resolved via: env: $QW_WORKSPACES)
-```
-
-JSON output:
-```bash
-qw config --json
-```
-
-### 2. `qw version` / `-v`
-
-Print version, commit hash, build date, and toolchain info:
-
-```bash
-qw -v
-# Output: qw version v0.1.0 (commit: a1b2c3d, built: 2026-09-28T09:30:00Z, go: go1.27.1, os/arch: darwin/arm64)
-```
-
----
-
-## 🔄 Release Workflow
-
-1. **`VERSION` File**: Version is tracked in the committed `VERSION` file (e.g. `0.1.2`).
-2. **PR Gate**: CI runs `scripts/verify-version.sh` to ensure any proposed version is strictly higher than both `main`'s `VERSION` and all existing release tags (no downgrades or conflicts allowed).
-3. **Merge to `main`**:
-   - **Major / Minor Bumps** (`X.Y.0`): Automatically tagged and released via GoReleaser.
-   - **Patch Bumps** (`X.Y.Z`): Tagged for audit; releases are published only if marked with `[release]`/`[hotfix]` or triggered manually via `mise run release`.
-
-### Manual Release Creation
-
-To manually publish release archives for a patch bump or trigger an immediate release:
-
-```bash
-# Via mise:
-mise run release
-
-# Or directly with GitHub CLI:
-gh workflow run release.yml -f force=true
-```
-
----
-
-## 📜 License
+## License
 
 MIT

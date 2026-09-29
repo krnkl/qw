@@ -1,11 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,6 +45,32 @@ type Config struct {
 	FileExists bool             `json:"file_exists" yaml:"file_exists"`
 }
 
+const configTemplateText = `Configuration Paths:
+  Config File:    {{.Paths.ConfigFile.Path}} {{if .FileExists}}[found]{{else}}[missing]{{end}} ({{.Paths.ConfigFile.Source}})
+  Config Dir:     {{.Paths.ConfigDir.Path}} (resolved via: {{.Paths.ConfigDir.Source}})
+  Data Dir:       {{.Paths.DataDir.Path}} (resolved via: {{.Paths.DataDir.Source}})
+  State Dir:      {{.Paths.StateDir.Path}} (resolved via: {{.Paths.StateDir.Source}})
+  Cache Dir:      {{.Paths.CacheDir.Path}} (resolved via: {{.Paths.CacheDir.Source}})
+  Runtime Dir:    {{.Paths.RuntimeDir.Path}} (resolved via: {{.Paths.RuntimeDir.Source}})
+
+Settings:
+  Workspaces Dir: {{.Workspaces.Path}} (resolved via: {{.Workspaces.Source}})
+`
+
+var configTmpl = template.Must(template.New("config").Parse(configTemplateText))
+
+// Format renders the human-readable configuration view using Go text/template.
+func (c *Config) Format(w io.Writer) error {
+	return configTmpl.Execute(w, c)
+}
+
+// String returns formatted human-readable configuration state.
+func (c *Config) String() string {
+	var buf bytes.Buffer
+	_ = c.Format(&buf)
+	return buf.String()
+}
+
 // EnvGetter is an abstraction for querying environment variables (for testing).
 type EnvGetter func(string) string
 
@@ -74,7 +103,6 @@ func ResolvePaths(sys SysInfo) Paths {
 	home := sys.HomeDir
 	osName := sys.OS
 
-	// 1. Config Dir
 	configDir := resolveDir(
 		sys.GetEnv("XDG_CONFIG_HOME"),
 		filepath.Join(home, ".config"),
@@ -82,7 +110,6 @@ func ResolvePaths(sys SysInfo) Paths {
 		fmt.Sprintf("platform fallback: %s (~/.config)", osName),
 	)
 
-	// 2. Data Dir
 	dataDir := resolveDir(
 		sys.GetEnv("XDG_DATA_HOME"),
 		filepath.Join(home, ".local", "share"),
@@ -90,7 +117,6 @@ func ResolvePaths(sys SysInfo) Paths {
 		fmt.Sprintf("platform fallback: %s (~/.local/share)", osName),
 	)
 
-	// 3. State Dir
 	stateDir := resolveDir(
 		sys.GetEnv("XDG_STATE_HOME"),
 		filepath.Join(home, ".local", "state"),
@@ -98,7 +124,6 @@ func ResolvePaths(sys SysInfo) Paths {
 		fmt.Sprintf("platform fallback: %s (~/.local/state)", osName),
 	)
 
-	// 4. Cache Dir
 	cacheDir := resolveDir(
 		sys.GetEnv("XDG_CACHE_HOME"),
 		filepath.Join(home, ".cache"),
@@ -106,10 +131,8 @@ func ResolvePaths(sys SysInfo) Paths {
 		fmt.Sprintf("platform fallback: %s (~/.cache)", osName),
 	)
 
-	// 5. Runtime Dir
 	runtimeDir := resolveRuntimeDir(sys)
 
-	// Config File is config.yaml inside ConfigDir
 	configFile := PathInfo{
 		Path:   filepath.Join(configDir.Path, "config.yaml"),
 		Source: fmt.Sprintf("config dir: %s", configDir.Source),
@@ -158,7 +181,6 @@ func resolveRuntimeDir(sys SysInfo) PathInfo {
 		}
 	}
 
-	// Linux fallback: /run/user/<UID>, or /tmp if UID dir doesn't exist
 	uidDir := fmt.Sprintf("/run/user/%d", sys.UID)
 	if sys.UID >= 0 {
 		if fi, err := os.Stat(uidDir); err == nil && fi.IsDir() {
@@ -186,9 +208,7 @@ func ExpandHome(path, home string) string {
 	return path
 }
 
-// yamlFileConfig mirrors possible keys in config.yaml
 type yamlFileConfig struct {
-	Ws         string `yaml:"ws"`
 	Workspaces string `yaml:"workspaces"`
 }
 
@@ -201,49 +221,33 @@ func Load() (*Config, error) {
 func LoadWithSys(sys SysInfo) (*Config, error) {
 	paths := ResolvePaths(sys)
 
-	// Check if config.yaml exists
 	var fileCfg yamlFileConfig
-	var fileSourceKey string
+	var fileConfigured bool
 	fileExists := false
 
 	if data, err := os.ReadFile(paths.ConfigFile.Path); err == nil {
 		fileExists = true
 		if err := yaml.Unmarshal(data, &fileCfg); err == nil {
-			if fileCfg.Ws != "" {
-				fileSourceKey = "ws"
-			} else if fileCfg.Workspaces != "" {
-				fileSourceKey = "workspaces"
+			if fileCfg.Workspaces != "" {
+				fileConfigured = true
 			}
 		}
 	}
 
-	// Workspaces resolution priority:
-	// 1. QW_WORKSPACES env
-	// 2. QW_WS env
-	// 3. config.yaml ws / workspaces
-	// 4. Default: <DataDir>/ws
 	var wsPath string
 	var wsSource string
 
 	envWorkspaces := sys.GetEnv("QW_WORKSPACES")
-	envWs := sys.GetEnv("QW_WS")
 
 	if envWorkspaces != "" {
 		wsPath = ExpandHome(strings.TrimSpace(envWorkspaces), sys.HomeDir)
 		wsSource = "env: $QW_WORKSPACES"
-	} else if envWs != "" {
-		wsPath = ExpandHome(strings.TrimSpace(envWs), sys.HomeDir)
-		wsSource = "env: $QW_WS"
-	} else if fileSourceKey != "" {
-		val := fileCfg.Ws
-		if val == "" {
-			val = fileCfg.Workspaces
-		}
-		wsPath = ExpandHome(strings.TrimSpace(val), sys.HomeDir)
-		wsSource = fmt.Sprintf("config: %s (%s)", paths.ConfigFile.Path, fileSourceKey)
+	} else if fileConfigured {
+		wsPath = ExpandHome(strings.TrimSpace(fileCfg.Workspaces), sys.HomeDir)
+		wsSource = fmt.Sprintf("config: %s (workspaces)", paths.ConfigFile.Path)
 	} else {
-		wsPath = filepath.Join(paths.DataDir.Path, "ws")
-		wsSource = fmt.Sprintf("default XDG: %s/ws", paths.DataDir.Path)
+		wsPath = filepath.Join(paths.DataDir.Path, "workspaces")
+		wsSource = fmt.Sprintf("default XDG: %s/workspaces", paths.DataDir.Path)
 	}
 
 	return &Config{
@@ -271,7 +275,6 @@ func (c *Config) EnsureDirs() error {
 		}
 	}
 
-	// Runtime dir requires 0700 permissions
 	if err := os.MkdirAll(c.Paths.RuntimeDir.Path, 0700); err != nil {
 		return fmt.Errorf("failed to create runtime directory %s: %w", c.Paths.RuntimeDir.Path, err)
 	}

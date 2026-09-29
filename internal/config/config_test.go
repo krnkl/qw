@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -13,72 +14,61 @@ func mockEnv(envMap map[string]string) EnvGetter {
 	}
 }
 
-func TestResolvePaths_PlatformFallbacks(t *testing.T) {
+func TestResolvePaths_PlatformFallbacks_Darwin(t *testing.T) {
 	home := "/Users/testuser"
-
-	tests := []struct {
-		name          string
-		osName        string
-		tmpDir        string
-		uid           int
-		expectedConf  string
-		expectedData  string
-		expectedState string
-		expectedCache string
-		expectedRun   string
-	}{
-		{
-			name:          "Darwin Strict CLI Defaults",
-			osName:        "darwin",
-			tmpDir:        "/var/folders/xx/tmp",
-			uid:           501,
-			expectedConf:  "/Users/testuser/.config/qw",
-			expectedData:  "/Users/testuser/.local/share/qw",
-			expectedState: "/Users/testuser/.local/state/qw",
-			expectedCache: "/Users/testuser/.cache/qw",
-			expectedRun:   "/var/folders/xx/tmp/qw",
-		},
-		{
-			name:          "Linux Defaults (no UID run dir exists)",
-			osName:        "linux",
-			tmpDir:        "/tmp",
-			uid:           99999, // Non-existent UID path
-			expectedConf:  "/Users/testuser/.config/qw",
-			expectedData:  "/Users/testuser/.local/share/qw",
-			expectedState: "/Users/testuser/.local/state/qw",
-			expectedCache: "/Users/testuser/.cache/qw",
-			expectedRun:   "/tmp/qw",
-		},
+	sys := SysInfo{
+		OS:      "darwin",
+		GetEnv:  mockEnv(map[string]string{}),
+		HomeDir: home,
+		UID:     501,
+		TmpDir:  "/var/folders/xx/tmp",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sys := SysInfo{
-				OS:      tt.osName,
-				GetEnv:  mockEnv(map[string]string{}),
-				HomeDir: home,
-				UID:     tt.uid,
-				TmpDir:  tt.tmpDir,
-			}
+	paths := ResolvePaths(sys)
 
-			paths := ResolvePaths(sys)
+	if paths.ConfigDir.Path != "/Users/testuser/.config/qw" {
+		t.Errorf("ConfigDir got %q, want %q", paths.ConfigDir.Path, "/Users/testuser/.config/qw")
+	}
+	if paths.DataDir.Path != "/Users/testuser/.local/share/qw" {
+		t.Errorf("DataDir got %q, want %q", paths.DataDir.Path, "/Users/testuser/.local/share/qw")
+	}
+	if paths.StateDir.Path != "/Users/testuser/.local/state/qw" {
+		t.Errorf("StateDir got %q, want %q", paths.StateDir.Path, "/Users/testuser/.local/state/qw")
+	}
+	if paths.CacheDir.Path != "/Users/testuser/.cache/qw" {
+		t.Errorf("CacheDir got %q, want %q", paths.CacheDir.Path, "/Users/testuser/.cache/qw")
+	}
+	if paths.RuntimeDir.Path != "/var/folders/xx/tmp/qw" {
+		t.Errorf("RuntimeDir got %q, want %q", paths.RuntimeDir.Path, "/var/folders/xx/tmp/qw")
+	}
+}
 
-			if paths.ConfigDir.Path != tt.expectedConf {
-				t.Errorf("ConfigDir got %q, want %q", paths.ConfigDir.Path, tt.expectedConf)
-			}
-			if paths.DataDir.Path != tt.expectedData {
-				t.Errorf("DataDir got %q, want %q", paths.DataDir.Path, tt.expectedData)
-			}
-			if paths.StateDir.Path != tt.expectedState {
-				t.Errorf("StateDir got %q, want %q", paths.StateDir.Path, tt.expectedState)
-			}
-			if paths.CacheDir.Path != tt.expectedCache {
-				t.Errorf("CacheDir got %q, want %q", paths.CacheDir.Path, tt.expectedCache)
-			}
-			if paths.RuntimeDir.Path != tt.expectedRun {
-				t.Errorf("RuntimeDir got %q, want %q", paths.RuntimeDir.Path, tt.expectedRun)
-			}
-		})
+func TestResolvePaths_PlatformFallbacks_Linux(t *testing.T) {
+	home := "/home/testuser"
+	sys := SysInfo{
+		OS:      "linux",
+		GetEnv:  mockEnv(map[string]string{}),
+		HomeDir: home,
+		UID:     99999,
+		TmpDir:  "/tmp",
+	}
+
+	paths := ResolvePaths(sys)
+
+	if paths.ConfigDir.Path != "/home/testuser/.config/qw" {
+		t.Errorf("ConfigDir got %q, want %q", paths.ConfigDir.Path, "/home/testuser/.config/qw")
+	}
+	if paths.DataDir.Path != "/home/testuser/.local/share/qw" {
+		t.Errorf("DataDir got %q, want %q", paths.DataDir.Path, "/home/testuser/.local/share/qw")
+	}
+	if paths.StateDir.Path != "/home/testuser/.local/state/qw" {
+		t.Errorf("StateDir got %q, want %q", paths.StateDir.Path, "/home/testuser/.local/state/qw")
+	}
+	if paths.CacheDir.Path != "/home/testuser/.cache/qw" {
+		t.Errorf("CacheDir got %q, want %q", paths.CacheDir.Path, "/home/testuser/.cache/qw")
+	}
+	if paths.RuntimeDir.Path != "/tmp/qw" {
+		t.Errorf("RuntimeDir got %q, want %q", paths.RuntimeDir.Path, "/tmp/qw")
 	}
 }
 
@@ -108,22 +98,18 @@ func TestResolvePaths_AbsoluteEnvOverrides(t *testing.T) {
 	if paths.ConfigDir.Source != "env: $XDG_CONFIG_HOME" {
 		t.Errorf("ConfigDir source got %q, want env: $XDG_CONFIG_HOME", paths.ConfigDir.Source)
 	}
-
 	if paths.DataDir.Path != "/custom/data/qw" {
 		t.Errorf("DataDir got %q, want /custom/data/qw", paths.DataDir.Path)
 	}
 	if paths.DataDir.Source != "env: $XDG_DATA_HOME" {
 		t.Errorf("DataDir source got %q, want env: $XDG_DATA_HOME", paths.DataDir.Source)
 	}
-
 	if paths.StateDir.Path != "/custom/state/qw" {
 		t.Errorf("StateDir got %q, want /custom/state/qw", paths.StateDir.Path)
 	}
-
 	if paths.CacheDir.Path != "/custom/cache/qw" {
 		t.Errorf("CacheDir got %q, want /custom/cache/qw", paths.CacheDir.Path)
 	}
-
 	if paths.RuntimeDir.Path != "/custom/runtime/qw" {
 		t.Errorf("RuntimeDir got %q, want /custom/runtime/qw", paths.RuntimeDir.Path)
 	}
@@ -133,7 +119,6 @@ func TestResolvePaths_AbsoluteEnvOverrides(t *testing.T) {
 }
 
 func TestResolvePaths_IgnoreRelativePaths(t *testing.T) {
-	// XDG specification mandates that non-absolute paths must be ignored and fallback used.
 	home := "/Users/testuser"
 	env := map[string]string{
 		"XDG_CONFIG_HOME": "relative/config",
@@ -172,7 +157,6 @@ func TestWorkspacesResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 1. Default fallback: <DataDir>/ws
 	t.Run("Default Fallback", func(t *testing.T) {
 		sys := SysInfo{
 			OS:      "darwin",
@@ -185,7 +169,7 @@ func TestWorkspacesResolution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected := filepath.Join(homeDir, ".local", "share", "qw", "ws")
+		expected := filepath.Join(homeDir, ".local", "share", "qw", "workspaces")
 		if cfg.Workspaces.Path != expected {
 			t.Errorf("got %q, want %q", cfg.Workspaces.Path, expected)
 		}
@@ -194,9 +178,8 @@ func TestWorkspacesResolution(t *testing.T) {
 		}
 	})
 
-	// 2. Config file 'ws' parameter
-	t.Run("Config File ws override", func(t *testing.T) {
-		yamlContent := "ws: ~/my-workspaces\n"
+	t.Run("Config File workspaces override", func(t *testing.T) {
+		yamlContent := "workspaces: ~/my-workspaces\n"
 		configFile := filepath.Join(configDir, "config.yaml")
 		if err := os.WriteFile(configFile, []byte(yamlContent), 0644); err != nil {
 			t.Fatal(err)
@@ -223,9 +206,8 @@ func TestWorkspacesResolution(t *testing.T) {
 		}
 	})
 
-	// 3. QW_WORKSPACES env variable takes precedence over config file
 	t.Run("Env Override precedence", func(t *testing.T) {
-		yamlContent := "ws: ~/from-config\n"
+		yamlContent := "workspaces: ~/from-config\n"
 		configFile := filepath.Join(configDir, "config.yaml")
 		if err := os.WriteFile(configFile, []byte(yamlContent), 0644); err != nil {
 			t.Fatal(err)
@@ -255,6 +237,43 @@ func TestWorkspacesResolution(t *testing.T) {
 	})
 }
 
+func TestConfigFormat(t *testing.T) {
+	tempDir := t.TempDir()
+	homeDir := filepath.Join(tempDir, "home")
+
+	sys := SysInfo{
+		OS:      "darwin",
+		GetEnv:  mockEnv(map[string]string{}),
+		HomeDir: homeDir,
+		UID:     501,
+		TmpDir:  os.TempDir(),
+	}
+
+	cfg, err := LoadWithSys(sys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := cfg.String()
+	requiredSubstrings := []string{
+		"Configuration Paths:",
+		"Config File:",
+		"Config Dir:",
+		"Data Dir:",
+		"State Dir:",
+		"Cache Dir:",
+		"Runtime Dir:",
+		"Settings:",
+		"Workspaces Dir:",
+	}
+
+	for _, sub := range requiredSubstrings {
+		if !strings.Contains(out, sub) {
+			t.Errorf("cfg.String() missing substring %q; got:\n%s", sub, out)
+		}
+	}
+}
+
 func TestEnsureDirs(t *testing.T) {
 	tempDir := t.TempDir()
 	homeDir := filepath.Join(tempDir, "home")
@@ -280,7 +299,6 @@ func TestEnsureDirs(t *testing.T) {
 		t.Fatalf("EnsureDirs failed: %v", err)
 	}
 
-	// Verify runtime dir permissions are 0700 on POSIX
 	if runtime.GOOS != "windows" {
 		fi, err := os.Stat(cfg.Paths.RuntimeDir.Path)
 		if err != nil {
@@ -291,7 +309,6 @@ func TestEnsureDirs(t *testing.T) {
 			t.Errorf("RuntimeDir perm got %#o, want 0700", perm)
 		}
 
-		// Verify data dir permissions are 0755
 		dataFi, err := os.Stat(cfg.Paths.DataDir.Path)
 		if err != nil {
 			t.Fatal(err)

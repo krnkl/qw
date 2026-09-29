@@ -58,21 +58,16 @@ get_current_version() {
 CURRENT_VERSION="$(get_current_version)"
 
 # ------------------------------------------------------------------------------
-# Dev Mode: Build local binary and link to mise + ~/.local/bin
+# Dev Mode: Link local binary into mise + ~/.local/bin
 # ------------------------------------------------------------------------------
 install_dev() {
     info "Installing local development build of qw..."
 
     cd "${REPO_ROOT}"
 
-    # 1. Build local binary with dev ldflags
-    info "Building ./bin/qw..."
-    VERSION_VAL="$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')"
-    COMMIT_VAL="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
-    BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-    go build -ldflags "-X github.com/krnkl/qw/internal/version.Version=v${VERSION_VAL}-dev -X github.com/krnkl/qw/internal/version.Commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.Date=${BUILD_DATE}" -o "${REPO_ROOT}/bin/qw" ./cmd/qw
-    success "Compiled ./bin/qw"
+    if [ ! -f "${REPO_ROOT}/bin/qw" ]; then
+        error "Binary ${REPO_ROOT}/bin/qw not found. Please run 'mise run build' first."
+    fi
 
     # 2. Ad-hoc codesign on macOS (prevents arm64 invalidation crashes)
     if [[ "$(uname -s)" == "Darwin" ]] && command -v codesign >/dev/null 2>&1; then
@@ -207,7 +202,7 @@ case "${1:-}" in
         printf "Usage:\n"
         printf "  ./scripts/install.sh          Interactively select and install a release via fzf\n"
         printf "  ./scripts/install.sh <ver>    Directly install a specific release (e.g. 0.1.0 or v0.1.0)\n"
-        printf "  ./scripts/install.sh --dev    Build and link the local development checkout into mise and ~/.local/bin\n"
+        printf "  ./scripts/install.sh --dev    Link the local development binary into mise and ~/.local/bin\n"
         exit 0
         ;;
     *)
