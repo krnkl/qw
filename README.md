@@ -1,6 +1,6 @@
 # qw
 
-`qw` stands for **quick workspaces** — an ergonomic 2-key chord (`q` → `w`) designed for rapid muscle memory.
+`qw` (pronounced *kiwi* 🥝) stands for **quick workspaces**.
 
 The main goal of `qw` is to help navigate active workspaces and aggregate related external context into a single, concise view, streamlining context switching and tracking across local and remote workspaces.
 
