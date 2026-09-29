@@ -7,9 +7,20 @@ import (
 	"io"
 	"os"
 
+	"github.com/krnkl/qw"
 	"github.com/krnkl/qw/internal/config"
-	"github.com/krnkl/qw/internal/version"
 )
+
+const helpMessage = `qw (kiwi 🥝): Unified Workspace Navigator
+
+Usage:
+  qw <command> [flags]
+
+Available Commands:
+  config    Inspect resolved XDG paths and configuration parameters
+  version   Display version and build information (-v, --version)
+  help      Show help for commands (-h, --help)
+`
 
 // Run executes the CLI with the provided arguments and standard I/O.
 func Run(args []string) int {
@@ -19,7 +30,7 @@ func Run(args []string) int {
 // RunWithIO executes the CLI with injected standard outputs for testing.
 func RunWithIO(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		printHelp(stdout)
+		fmt.Fprint(stdout, helpMessage)
 		return 0
 	}
 
@@ -29,27 +40,12 @@ func RunWithIO(args []string, stdout, stderr io.Writer) int {
 	case "version", "-v", "--version":
 		return runVersion(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
-		printHelp(stdout)
+		fmt.Fprint(stdout, helpMessage)
 		return 0
 	default:
 		fmt.Fprintf(stderr, "Unknown command %q. Run 'qw help' for usage.\n", args[0])
 		return 1
 	}
-}
-
-func printHelp(w io.Writer) {
-	fmt.Fprintln(w, "qw (kiwi 🥝): Unified Workspace Navigator")
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  qw <command> [flags]")
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Available Commands:")
-	fmt.Fprintln(w, "  config    Inspect resolved XDG paths and configuration parameters")
-	fmt.Fprintln(w, "  version   Display version and build information (-v, --version)")
-	fmt.Fprintln(w, "  help      Show help for commands (-h, --help)")
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Flags:")
-	fmt.Fprintln(w, "  --json    Output in structured JSON format (supported on config and version)")
 }
 
 func runConfig(args []string, stdout, stderr io.Writer) int {
@@ -77,39 +73,21 @@ func runConfig(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	fileStatus := "[missing]"
-	if cfg.FileExists {
-		fileStatus = "[found]"
+	if err := cfg.Format(stdout); err != nil {
+		fmt.Fprintf(stderr, "Error formatting configuration: %v\n", err)
+		return 1
 	}
-
-	fmt.Fprintln(stdout, "Configuration Paths:")
-	fmt.Fprintf(stdout, "  Config File:    %s %s (%s)\n", cfg.Paths.ConfigFile.Path, fileStatus, cfg.Paths.ConfigFile.Source)
-	fmt.Fprintf(stdout, "  Config Dir:     %s (resolved via: %s)\n", cfg.Paths.ConfigDir.Path, cfg.Paths.ConfigDir.Source)
-	fmt.Fprintf(stdout, "  Data Dir:       %s (resolved via: %s)\n", cfg.Paths.DataDir.Path, cfg.Paths.DataDir.Source)
-	fmt.Fprintf(stdout, "  State Dir:      %s (resolved via: %s)\n", cfg.Paths.StateDir.Path, cfg.Paths.StateDir.Source)
-	fmt.Fprintf(stdout, "  Cache Dir:      %s (resolved via: %s)\n", cfg.Paths.CacheDir.Path, cfg.Paths.CacheDir.Source)
-	fmt.Fprintf(stdout, "  Runtime Dir:    %s (resolved via: %s)\n", cfg.Paths.RuntimeDir.Path, cfg.Paths.RuntimeDir.Source)
-	fmt.Fprintln(stdout, "")
-	fmt.Fprintln(stdout, "Settings:")
-	fmt.Fprintf(stdout, "  Workspaces Dir: %s (resolved via: %s)\n", cfg.Workspaces.Path, cfg.Workspaces.Source)
-
 	return 0
 }
 
 func runVersion(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	jsonOutput := fs.Bool("json", false, "Output version information as JSON")
 
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 
-	if *jsonOutput {
-		fmt.Fprintln(stdout, version.JSON())
-		return 0
-	}
-
-	fmt.Fprintln(stdout, version.String())
+	fmt.Fprintln(stdout, qw.VersionString())
 	return 0
 }

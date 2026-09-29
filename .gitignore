@@ -16,6 +16,5 @@ dist/
 # Coverage and test artifacts
 *.out
 *.test
-!Dockerfile.test
 coverage/
 tmp/
