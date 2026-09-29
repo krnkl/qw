@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/krnkl/qw/internal/config"
-	"github.com/krnkl/qw/internal/version"
 )
 
 const helpMessage = `qw (kiwi 🥝): Unified Workspace Navigator
@@ -22,13 +21,23 @@ Available Commands:
   help      Show help for commands (-h, --help)
 `
 
-// Run executes the CLI with the provided arguments and standard I/O.
+// Run executes the CLI using default standard outputs and dev version string.
 func Run(args []string) int {
-	return RunWithIO(args, os.Stdout, os.Stderr)
+	return RunWithVersion(args, "qw version dev")
+}
+
+// RunWithVersion executes the CLI with the provided arguments and version string.
+func RunWithVersion(args []string, versionStr string) int {
+	return RunWithIOAndVersion(args, versionStr, os.Stdout, os.Stderr)
 }
 
 // RunWithIO executes the CLI with injected standard outputs for testing.
 func RunWithIO(args []string, stdout, stderr io.Writer) int {
+	return RunWithIOAndVersion(args, "qw version dev", stdout, stderr)
+}
+
+// RunWithIOAndVersion executes the CLI with injected I/O and version string.
+func RunWithIOAndVersion(args []string, versionStr string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stdout, helpMessage)
 		return 0
@@ -38,7 +47,7 @@ func RunWithIO(args []string, stdout, stderr io.Writer) int {
 	case "config":
 		return runConfig(args[1:], stdout, stderr)
 	case "version", "-v", "--version":
-		return runVersion(args[1:], stdout, stderr)
+		return runVersion(args[1:], versionStr, stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, helpMessage)
 		return 0
@@ -80,7 +89,7 @@ func runConfig(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runVersion(args []string, stdout, stderr io.Writer) int {
+func runVersion(args []string, versionStr string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
@@ -88,6 +97,6 @@ func runVersion(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintln(stdout, version.String())
+	fmt.Fprintln(stdout, versionStr)
 	return 0
 }

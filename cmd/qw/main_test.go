@@ -1,4 +1,4 @@
-package version
+package main
 
 import (
 	"runtime"
@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-func TestString_Defaults(t *testing.T) {
-	out := String()
+func TestVersionString_Defaults(t *testing.T) {
+	out := versionString()
 
 	checks := []struct {
 		name     string
@@ -25,25 +25,24 @@ func TestString_Defaults(t *testing.T) {
 
 	for _, tc := range checks {
 		if !strings.Contains(out, tc.expected) {
-			t.Errorf("String() missing %s %q; got: %s", tc.name, tc.expected, out)
+			t.Errorf("versionString() missing %s %q; got: %s", tc.name, tc.expected, out)
 		}
 	}
 }
 
-func TestString_Injected(t *testing.T) {
+func TestVersionString_Injected(t *testing.T) {
 	origVer, origCommit, origDate := version, commit, date
 	defer func() {
 		version, commit, date = origVer, origCommit, origDate
 	}()
 
-	version = "v0.9.9"
+	version = "v0.1.5"
 	commit = "abc1234"
 	date = "2026-09-29T12:00:00Z"
 
-	out := String()
-
-	expected := "qw version v0.9.9 (commit: abc1234, built: 2026-09-29T12:00:00Z"
+	out := versionString()
+	expected := "qw version v0.1.5 (commit: abc1234, built: 2026-09-29T12:00:00Z"
 	if !strings.HasPrefix(out, expected) {
-		t.Errorf("String() got %q, want prefix %q", out, expected)
+		t.Errorf("versionString() got %q, want prefix %q", out, expected)
 	}
 }

@@ -53,7 +53,7 @@ run = """
 VERSION_VAL="$(cat VERSION | tr -d '[:space:]')"
 COMMIT_VAL="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-go build -ldflags "-X github.com/krnkl/qw/internal/version.version=v${VERSION_VAL} -X github.com/krnkl/qw/internal/version.commit=${COMMIT_VAL} -X github.com/krnkl/qw/internal/version.date=${BUILD_DATE}" -o bin/qw ./cmd/qw
+go build -ldflags "-X main.version=v${VERSION_VAL} -X main.commit=${COMMIT_VAL} -X main.date=${BUILD_DATE}" -o bin/qw ./cmd/qw
 """
 
 [tasks.clean]
