@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/krnkl/qw"
 	"github.com/krnkl/qw/internal/config"
+	"github.com/krnkl/qw/internal/version"
 )
 
 const helpMessage = `qw (kiwi 🥝): Unified Workspace Navigator
@@ -88,6 +88,6 @@ func runVersion(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintln(stdout, qw.VersionString())
+	fmt.Fprintln(stdout, version.String())
 	return 0
 }

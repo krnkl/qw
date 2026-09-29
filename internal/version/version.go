@@ -1,19 +1,16 @@
-package qw
+package version
 
 import (
-	_ "embed"
 	"fmt"
 	"runtime"
-	"strings"
+	"runtime/debug"
 )
 
-//go:embed VERSION
-var rawVersion string
-
 var (
-	// Injected at build time via -ldflags if provided
-	commit = "dev"
-	date   = "unknown"
+	// Injected at build time via -ldflags
+	version = ""
+	commit  = "dev"
+	date    = "unknown"
 )
 
 type versionInfo struct {
@@ -25,17 +22,19 @@ type versionInfo struct {
 	arch      string
 }
 
-func getVersionInfo() versionInfo {
-	v := strings.TrimSpace(rawVersion)
-	if v != "" && !strings.HasPrefix(v, "v") {
-		v = "v" + v
+func getVersion() string {
+	if version != "" {
+		return version
 	}
-	if v == "" {
-		v = "dev"
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
 	}
+	return "dev"
+}
 
+func getVersionInfo() versionInfo {
 	return versionInfo{
-		version:   v,
+		version:   getVersion(),
 		commit:    commit,
 		date:      date,
 		goVersion: runtime.Version(),
@@ -44,8 +43,8 @@ func getVersionInfo() versionInfo {
 	}
 }
 
-// VersionString returns formatted human-readable version output for the CLI.
-func VersionString() string {
+// String returns formatted human-readable version output for the CLI.
+func String() string {
 	info := getVersionInfo()
 	return fmt.Sprintf("qw version %s (commit: %s, built: %s, go: %s, os/arch: %s/%s)",
 		info.version, info.commit, info.date, info.goVersion, info.os, info.arch)

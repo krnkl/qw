@@ -20,8 +20,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/krnkl/qw.commit={{ .ShortCommit }}
-      - -X github.com/krnkl/qw.date={{ .Date }}
+      - -X github.com/krnkl/qw/internal/version.version={{ .Tag }}
+      - -X github.com/krnkl/qw/internal/version.commit={{ .ShortCommit }}
+      - -X github.com/krnkl/qw/internal/version.date={{ .Date }}
 
 archives:
   - id: qw-archive
