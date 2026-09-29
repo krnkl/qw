@@ -2,8 +2,10 @@ package version
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"runtime/debug"
+	"strings"
 )
 
 var (
@@ -28,6 +30,18 @@ func getVersion() string {
 	}
 	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 		return bi.Main.Version
+	}
+	// Fallback for local development checkouts without ldflags: read root VERSION from disk if present
+	for _, p := range []string{"VERSION", "../VERSION", "../../VERSION"} {
+		if data, err := os.ReadFile(p); err == nil {
+			v := strings.TrimSpace(string(data))
+			if v != "" {
+				if !strings.HasPrefix(v, "v") {
+					return "v" + v
+				}
+				return v
+			}
+		}
 	}
 	return "dev"
 }

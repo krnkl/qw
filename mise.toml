@@ -1,6 +1,6 @@
 [tools]
 go = "1.26.0"
-fzf = "latest"
+fzf = "0.74.4"
 
 # ------------------------------------------------------------------------------
 # Default / Meta Targets
@@ -79,4 +79,15 @@ run = "./scripts/install.sh --dev"
 
 [tasks.release]
 description = "Trigger manual release publication via GitHub Actions and watch progress"
-run = "gh workflow run release.yml -f force=true && sleep 3 && gh run watch"
+run = """
+gh workflow run release.yml -f force=true
+RUN_ID=""
+for i in {1..15}; do
+  RUN_ID="$(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+  [ -n "$RUN_ID" ] && break
+  sleep 1
+done
+if [ -n "$RUN_ID" ]; then
+  gh run watch "$RUN_ID"
+fi
+"""

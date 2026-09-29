@@ -65,11 +65,9 @@ install_dev() {
 
     cd "${REPO_ROOT}"
 
-    # 1. Ensure binary is built (relies on mise run build or builds via mise)
-    if [ ! -f "${REPO_ROOT}/bin/qw" ]; then
-        info "Building ./bin/qw via mise..."
-        mise run build
-    fi
+    # 1. Build local binary with mise unconditionally
+    info "Building ./bin/qw via mise..."
+    mise run build
     success "Binary ./bin/qw is ready"
 
     # 2. Ad-hoc codesign on macOS (prevents arm64 invalidation crashes)
